@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>放学能量站</title>
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- 状态栏（移动端观感） -->
+  <div class="statusbar">
+    <span id="clock">16:24</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+
+  <!-- ===== 视图：今日作业 ===== -->
+  <div class="screen view active" id="v-home">
+    <div class="topbar">
+      <div>
+        <h1>放学能量站</h1>
+        <div class="date" id="todayDate">周三 · 3月18日</div>
+      </div>
+      <div class="avatar">🧒</div>
+    </div>
+
+    <div class="banner">
+      <div class="energy">🔋</div>
+      <h2 id="energyTitle">能量已充 0%</h2>
+      <p>写完今天的作业，就能解锁手机啦！</p>
+      <div class="progress"><i id="energyBar" style="width:0%"></i></div>
+    </div>
+
+    <div class="sec-title">今日作业 <span class="more" onclick="go('v-add')">+ 添加</span></div>
+    <div id="hwList"></div>
+
+    <div class="card" style="text-align:center;">
+      <div class="pill">⏱️ 每项完成后需等待 1 分钟</div>
+      <p style="font-size:12px;color:var(--sub);margin:10px 0 14px;">防止跳做，养成专注好习惯</p>
+      <button class="btn primary" id="unlockBtn" disabled onclick="tryUnlock()">全部完成才能解锁 🔓</button>
+    </div>
+  </div>
+
+  <!-- ===== 视图：添加作业 ===== -->
+  <div class="screen view" id="v-add">
+    <div class="topbar"><h1>添加作业</h1><div class="avatar" onclick="go('v-home')">✕</div></div>
+    <div class="seg">
+      <button class="on" onclick="seg(this,'paste')">粘贴文字</button>
+      <button onclick="seg(this,'ocr')">截图识别</button>
+    </div>
+    <div id="pasteBox">
+      <textarea class="textarea" id="hwInput" placeholder="把老师群里发的作业复制到这里，例如：&#10;数学：口算题卡一页（约15分钟）&#10;语文：背诵第5课，默写生字（约20分钟）&#10;英语：听读Unit3单词（约10分钟）"></textarea>
+      <button class="btn primary" style="margin-top:14px;" onclick="parseHW()">智能解析生成清单</button>
+    </div>
+    <div id="ocrBox" style="display:none;">
+      <div class="cam" onclick="pickImage()"><span class="big">📷</span>点击拍摄或上传作业截图</div>
+      <input type="file" id="ocrFile" accept="image/*" style="display:none;" onchange="onImageChosen()" />
+      <button class="btn primary" onclick="parseHW()">识别并生成清单</button>
+    </div>
+    <div id="previewBox" style="margin-top:18px;display:none;">
+      <div class="sec-title">识别结果（可手动调整）</div>
+      <div id="previewList"></div>
+      <button class="btn ghost" style="margin-top:8px;" onclick="confirmHW()">确认加入今日清单</button>
+    </div>
+    <div class="card" style="margin-top:18px;">
+      <div class="sec-title">历史作业记录 <span class="more" onclick="toast('点 ＋ 可复用为今日作业，也可直接编辑/删除')">说明</span></div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <!-- ===== 视图：专注训练 ===== -->
+  <div class="screen view" id="v-focus">
+    <div class="topbar"><h1>专注训练</h1><div class="avatar" onclick="go('v-home')">✕</div></div>
+    <div class="card">
+      <div class="sec-title">选择时长</div>
+      <div class="opt-row" id="durRow">
+        <div class="opt on" data-v="10" onclick="pick(this,'durRow')">10<small class="lbl">分钟</small></div>
+        <div class="opt" data-v="15" onclick="pick(this,'durRow')">15<small class="lbl">分钟</small></div>
+        <div class="opt" data-v="25" onclick="pick(this,'durRow')">25<small class="lbl">分钟</small></div>
+        <div class="opt" data-v="30" onclick="pick(this,'durRow')">30<small class="lbl">分钟</small></div>
+      </div>
+      <div class="sec-title">专注项目</div>
+      <div class="opt-row" id="projRow">
+        <div class="opt on" data-v="读书" onclick="pick(this,'projRow')">📖 读书</div>
+        <div class="opt" data-v="坐姿" onclick="pick(this,'projRow')">🧘 坐姿</div>
+        <div class="opt" data-v="站姿" onclick="pick(this,'projRow')">🚶 站姿</div>
+      </div>
+      <button class="btn amber" id="focusBtn" onclick="startFocus()">开始专注</button>
+      <p style="font-size:12px;color:var(--sub);text-align:center;margin:10px 0 0;">训练期间不可切换其他应用（应用内锁定）</p>
+    </div>
+    <div class="card focus-card" id="focusRun" style="display:none;">
+      <div class="ring" id="ring">10:00</div>
+      <div class="proj" id="projName">📖 读书</div>
+      <div class="hint">保持专注，时间到会提醒你～</div>
+    </div>
+  </div>
+
+  <!-- ===== 视图：解锁状态 ===== -->
+  <div class="screen view" id="v-unlock">
+    <div class="topbar"><h1>我的能量</h1><div class="avatar" onclick="go('v-home')">✕</div></div>
+    <div class="unlock-center" id="unlockCenter">
+      <div class="battery">🔒</div>
+      <h2>手机已锁定</h2>
+      <p>完成今日全部作业后自动解锁</p>
+      <div class="countdown" id="entertainCD" style="display:none;">30:00</div>
+      <div class="row2" id="ctrlBtns" style="display:none;">
+        <button class="btn ghost" onclick="pauseEntertain()">⏸ 暂停</button>
+        <button class="btn primary" onclick="resumeEntertain()">▶ 开始（继续）</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title">今日完成情况</div>
+      <div id="summaryList"></div>
+    </div>
+  </div>
+
+  <!-- ===== 视图：设置 ===== -->
+  <div class="screen view" id="v-set">
+    <div class="topbar"><h1>设置</h1><div class="avatar" onclick="go('v-home')">✕</div></div>
+    <div class="card">
+      <div class="set-row" onclick="openEntertainModal()">解锁后娱乐时长 <span id="entertainVal" style="color:var(--sub);">30 分钟 ›</span></div>
+      <div class="set-row" onclick="openSubjectModal()">作业学科自定义 <span style="color:var(--sub);">›</span></div>
+      <div class="set-row">闹铃通知
+        <span class="switch on" id="swAlarm" onclick="this.classList.toggle('on')"><i></i></span>
+      </div>
+      <div class="set-row">专注完成提醒
+        <span class="switch on" id="swFocus" onclick="this.classList.toggle('on')"><i></i></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="set-row" onclick="openAccountModal()">切换微信账号（演示） <span class="arrow">⟲</span></div>
+      <div class="set-row" onclick="clearData()">重置当前账号缓存 <span class="arrow">⟲</span></div>
+      <div class="set-row">关于放学能量站 <span class="arrow">›</span></div>
+    </div>
+    <p style="font-size:12px;color:var(--sub);text-align:center;margin-top:14px;">
+      v1.0 · 帮助学生先作业后娱乐<br/>当前用户：<span id="userId" style="color:var(--green);font-weight:600;">—</span>
+    </p>
+  </div>
+
+  <!-- 底部导航 -->
+  <div class="tabbar">
+    <div class="tab active" data-v="v-home" onclick="go('v-home')"><span class="ic">📚</span>作业</div>
+    <div class="tab" data-v="v-focus" onclick="go('v-focus')"><span class="ic">🎯</span>专注</div>
+    <div class="tab" data-v="v-unlock" onclick="go('v-unlock')"><span class="ic">🔋</span>能量</div>
+    <div class="tab" data-v="v-set" onclick="go('v-set')"><span class="ic">⚙️</span>设置</div>
+  </div>
+
+  <!-- 解锁后娱乐时长 弹层 -->
+  <div class="sheet-mask" id="entertainSheet" onclick="if(event.target===this)closeSheet('entertainSheet')">
+    <div class="sheet">
+      <h3>解锁后娱乐时长</h3>
+      <p class="sheet-sub">完成全部作业后，可娱乐的时长</p>
+      <div class="opt-grid" id="entertainOpts"></div>
+      <button class="btn primary" style="margin-top:14px;" onclick="closeSheet('entertainSheet')">完成</button>
+    </div>
+  </div>
+
+  <!-- 作业学科自定义 弹层 -->
+  <div class="sheet-mask" id="subjectSheet" onclick="if(event.target===this)closeSheet('subjectSheet')">
+    <div class="sheet">
+      <h3>作业学科自定义</h3>
+      <p class="sheet-sub">新增常用学科，智能解析时将自动识别</p>
+      <div class="subj-manage" id="subjManage"></div>
+      <div class="subj-add">
+        <input id="subjInput" maxlength="6" placeholder="输入新学科，如 历史" />
+        <button class="btn primary" style="width:auto;padding:11px 18px;" onclick="addSubject()">添加</button>
+      </div>
+      <button class="btn ghost" style="margin-top:12px;" onclick="closeSheet('subjectSheet')">完成</button>
+    </div>
+  </div>
+
+  <!-- 切换账号 弹层 -->
+  <div class="sheet-mask" id="accountSheet" onclick="if(event.target===this)closeSheet('accountSheet')">
+    <div class="sheet">
+      <h3>切换微信账号（演示）</h3>
+      <p class="sheet-sub">模拟不同微信号登录，作业与设置各自独立</p>
+      <div class="opt-grid" id="accountOpts"></div>
+      <button class="btn ghost" style="margin-top:12px;" onclick="closeSheet('accountSheet')">取消</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 登录遮罩 -->
+  <div class="login-mask" id="loginMask">
+    <div class="login-card">
+      <div class="login-spin" id="loginSpin">🔄</div>
+      <h3 id="loginTitle">正在登录…</h3>
+      <p id="loginDesc">微信授权中，请稍候</p>
+      <button class="btn primary" id="loginRetry" style="display:none;margin-top:6px;" onclick="bootstrap()">重新登录</button>
+    </div>
+  </div>
+
+</div>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

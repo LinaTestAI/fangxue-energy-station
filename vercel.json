@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": null,
+  "functions": {
+    "api/[...slug].js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
+  ]
+}

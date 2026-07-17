@@ -1,0 +1,12 @@
+{
+  "name": "fangxue-energy-station",
+  "version": "1.0.0",
+  "description": "放学能量站 · 微信内 H5（作业管理 + 手机管控）。本地单进程；Vercel 用 public/ + api 函数",
+  "private": true,
+  "scripts": {
+    "start": "node server/mock-server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
