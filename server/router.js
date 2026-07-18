@@ -98,7 +98,9 @@ function serveStatic(req, res, pathname) {
 
 /* ============ 路由处理（Vercel / 本地共用） ============ */
 async function handle(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  // 防御性兜底：Vercel / 本地在极端情况下可能缺失 host 头，避免 new URL 抛错导致整函数 500
+  const host = req.headers.host || 'localhost';
+  const url = new URL(req.url, `http://${host}`);
   const p = url.pathname;
 
   // 1) 发起微信网页授权（前端在无登录态且处于微信内时调用）
