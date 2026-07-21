@@ -197,7 +197,7 @@ export async function onRequest(context) {
   if (p === '/api/user') {
     const no = needAuth();
     if (no) return no;
-    return jsonRes({ openid, nickname: '同学', kvBound: !!kv });
+    return jsonRes({ openid, nickname: '同学' });
   }
 
   // ── 5. 作业读写 ──
