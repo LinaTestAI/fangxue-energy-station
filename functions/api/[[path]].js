@@ -8,13 +8,6 @@
  * 静态资源（public/）由 Cloudflare CDN 直接托管，不经过此函数。
  */
 
-/* ============ 微信配置 ============ */
-const WECHAT = {
-  appId: process.env.WX_APPID || 'YOUR_APPID',
-  appSecret: process.env.WX_SECRET || 'YOUR_SECRET',
-};
-const USE_MOCK = WECHAT.appId === 'YOUR_APPID';
-
 /* ============ 内存数据（单实例内有效） ============ */
 const DB =
   globalThis.__fx_db ||
@@ -100,7 +93,15 @@ async function readBody(req) {
 
 /* ============ 主入口（Cloudflare Pages Function 标准签名） ============ */
 export async function onRequest(context) {
-  const { request } = context;
+  const { request, env } = context;
+
+  // 微信配置（从 Cloudflare 环境变量读取，不使用 Node.js 的 process）
+  const WECHAT = {
+    appId: (env && env.WX_APPID) || 'YOUR_APPID',
+    appSecret: (env && env.WX_SECRET) || 'YOUR_SECRET',
+  };
+  const USE_MOCK = WECHAT.appId === 'YOUR_APPID';
+
   const url = new URL(request.url);
   const p = url.pathname;
 
