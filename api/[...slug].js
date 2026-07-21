@@ -29,9 +29,29 @@ if (!db.history['openid_demo']) {
   ];
 }
 
-/* ============ 工具函数 ============ */
-const hash = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 16);
-const issueToken = (openid) => hash(openid + ':' + Date.now());
+/* ============ 自包含 Token（HMAC 签名，避免 Serverless 内存会话不共享） ============ */
+const SECRET = process.env.JWT_SECRET || 'fx-station-demo-secret';
+const b64url = (buf) => Buffer.from(buf).toString('base64url');
+const b64urlDecode = (s) => Buffer.from(s, 'base64url');
+
+function makeToken(openid) {
+  const payload = b64url(Buffer.from(openid));
+  const sig = crypto.createHmac('sha256', SECRET).update(payload).digest();
+  return payload + '.' + b64url(sig);
+}
+function verifyToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const [payload, sig] = token.split('.');
+  const expected = crypto.createHmac('sha256', SECRET).update(payload).digest();
+  const got = b64urlDecode(sig);
+  if (got.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(got, expected)) return null;
+  try {
+    return Buffer.from(b64urlDecode(payload)).toString('utf8');
+  } catch {
+    return null;
+  }
+}
 
 function parseCookies(req) {
   const out = {};
@@ -43,13 +63,12 @@ function parseCookies(req) {
   return out;
 }
 
-function openidFromToken(token) {
-  return db.tokens[token] ? db.tokens[token].openid : null;
+function openidFromReq(req) {
+  return verifyToken(parseCookies(req).fx_token);
 }
 
-function openidFromReq(req) {
-  return openidFromToken(parseCookies(req).fx_token);
-}
+// 由 code/uid 派生稳定的短 openid
+const shortId = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 12);
 
 function exchangeCode(code) {
   if (!USE_MOCK) {
@@ -57,7 +76,7 @@ function exchangeCode(code) {
     // const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${WECHAT.appId}&secret=${WECHAT.appSecret}&code=${code}&grant_type=authorization_code`;
     // ... fetch -> json -> return j.openid;
   }
-  return 'openid_' + hash(code);
+  return 'openid_' + shortId(code);
 }
 
 function sendJson(res, code, obj, extraHeaders = {}) {
@@ -97,7 +116,7 @@ async function handle(req, res) {
     if (USE_MOCK) {
       return (
         res.writeHead(302, {
-          Location: `${cb}?code=mock_${hash(String(Date.now()))}`,
+          Location: `${cb}?code=mock_${shortId(String(Date.now()))}`,
         }), res.end()
       );
     }
@@ -115,8 +134,7 @@ async function handle(req, res) {
     const code = url.searchParams.get('code');
     if (!code) return sendJson(res, 400, { error: 'missing code' });
     const openid = exchangeCode(code);
-    const token = issueToken(openid);
-    db.tokens[token] = { openid };
+    const token = makeToken(openid);
     if (!db.homework[openid]) db.homework[openid] = [];
     if (!db.history[openid])
       db.history[openid] =
@@ -130,9 +148,8 @@ async function handle(req, res) {
   if (p === '/api/wechat/mock-login' && req.method === 'POST') {
     const body = await readBody(req);
     const uid = body && body.uid;
-    const openid = uid ? 'openid_' + hash(String(uid)) : 'openid_demo';
-    const token = issueToken(openid);
-    db.tokens[token] = { openid };
+    const openid = uid ? 'openid_' + shortId(String(uid)) : 'openid_demo';
+    const token = makeToken(openid);
     if (!db.homework[openid]) db.homework[openid] = [];
     if (!db.history[openid])
       db.history[openid] =
