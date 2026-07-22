@@ -74,12 +74,6 @@ async function verifyToken(token) {
 /* ============ 用户数据存储（KV 优先，内存兜底） ============ */
 const MEM = globalThis.__fx_mem || (globalThis.__fx_mem = {});
 
-const SEED_HISTORY = [
-  { id: 201, subj: '数学', title: '计算每日一练', min: 15 },
-  { id: 202, subj: '语文', title: '阅读理解一篇', min: 20 },
-  { id: 203, subj: '英语', title: '朗读课文 Unit2', min: 10 },
-];
-
 async function loadUser(openid, kv) {
   if (kv) {
     const raw = await kv.get('u:' + openid);
@@ -88,7 +82,7 @@ async function loadUser(openid, kv) {
   if (MEM[openid]) return MEM[openid];
   const fresh = {
     homework: [],
-    history: openid === 'openid_demo' ? SEED_HISTORY : [],
+    history: [],
     settings: null,
   };
   MEM[openid] = fresh;
@@ -200,11 +194,17 @@ export async function onRequest(context) {
     });
   }
 
-  // ── 3. 模拟登录（调试/演示，支持 uid 切换账号）──
+  // ── 3. 模拟登录（调试/演示；不传 uid 时为每个浏览器会话生成独立 openid，保证不同用户数据隔离；传 uid 可模拟指定微信号）──
   if (p === '/api/wechat/mock-login' && request.method === 'POST') {
     const body = await readBody(request);
     const uid = body && body.uid;
-    const oid = uid ? 'openid_' + b64url(new TextEncoder().encode(String(uid))).slice(0, 12) : 'openid_demo';
+    let oid;
+    if (uid) {
+      oid = 'openid_' + b64url(new TextEncoder().encode(String(uid))).slice(0, 12);
+    } else {
+      // 无 uid：每次登录生成随机 openid，不同浏览器/用户互不可见彼此的作业与设置
+      oid = 'openid_' + b64url(crypto.getRandomValues(new Uint8Array(9)));
+    }
     const t = await makeToken(oid);
     // 预初始化用户数据（确保 KV/内存中存在）
     const u = await loadUser(oid, kv);

@@ -139,48 +139,23 @@ async function onLoggedIn(user) {
     }
   } catch (e) {}
 
-  // 2) 该账号的作业（默认演示账号空时填充样例，其余账号空则留空以示独立）
+  // 2) 该账号的作业（按 openid 隔离，无默认作业；首次进入为空清单）
   try {
     const h = await apiGet('/api/homework');
-    if (Array.isArray(h) && h.length) {
-      hw = h;
-    } else if (user.openid === 'openid_demo') {
-      hw = seedHomework(); await persistHW();
-    } else {
-      hw = [];
-    }
+    hw = Array.isArray(h) ? h : [];
   } catch (e) { hw = []; }
 
-  // 3) 该账号的历史
+  // 3) 该账号的历史（按 openid 隔离，无默认历史；首次进入为空）
   try {
     const his = await apiGet('/api/history');
-    if (Array.isArray(his) && his.length) history = his;
-    else if (user.openid === 'openid_demo') { history = seedHistory(); await persistHistory(); }
-    else { history = []; }
+    history = Array.isArray(his) ? his : [];
   } catch (e) { history = []; }
 
   setEntertain(entertainMinutes);   // 同步设置页显示
   renderHW();
   renderHistory();
   renderSummary();
-  toast('登录成功' + (user.openid === 'openid_demo' ? ' 👋' : ''));
-}
-
-/* 首次演示数据 */
-function seedHomework() {
-  return [
-    { id: 1, subj: '数学', title: '口算题卡一页', min: 15, done: true },
-    { id: 2, subj: '语文', title: '背诵第5课+默写生字', min: 20, done: false },
-    { id: 3, subj: '英语', title: '听读 Unit3 单词', min: 10, done: false },
-  ];
-}
-function seedHistory() {
-  return [
-    { id: 201, subj: '数学', title: '计算每日一练', min: 15 },
-    { id: 202, subj: '语文', title: '阅读理解一篇', min: 20 },
-    { id: 203, subj: '英语', title: '朗读课文 Unit2', min: 10 },
-    { id: 204, subj: '体育', title: '跳绳 100 个', min: 10 },
-  ];
+  toast('登录成功');
 }
 
 /* ====================================================================

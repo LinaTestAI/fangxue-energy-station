@@ -21,13 +21,6 @@ const USE_MOCK = WECHAT.appId === 'YOUR_APPID';
 const db =
   global.fx_db ||
   (global.fx_db = { tokens: {}, homework: {}, history: {}, settings: {} });
-if (!db.history['openid_demo']) {
-  db.history['openid_demo'] = [
-    { id: 201, subj: '数学', title: '计算每日一练', min: 15 },
-    { id: 202, subj: '语文', title: '阅读理解一篇', min: 20 },
-    { id: 203, subj: '英语', title: '朗读课文 Unit2', min: 10 },
-  ];
-}
 
 /* ============ 自包含 Token（HMAC 签名，避免 Serverless 内存会话不共享） ============ */
 const SECRET = process.env.JWT_SECRET || 'fx-station-demo-secret';
@@ -138,9 +131,7 @@ async function handle(req, res) {
     const openid = await exchangeCode(code);
     const token = makeToken(openid);
     if (!db.homework[openid]) db.homework[openid] = [];
-    if (!db.history[openid])
-      db.history[openid] =
-        openid === 'openid_demo' ? db.history['openid_demo'] || [] : [];
+    if (!db.history[openid]) db.history[openid] = [];
     if (!db.settings[openid]) db.settings[openid] = null;
     const cookie = `fx_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
     return res.writeHead(302, { Location: '/', 'Set-Cookie': cookie }), res.end();
@@ -152,16 +143,14 @@ async function handle(req, res) {
     return res.writeHead(200, { 'Set-Cookie': cookie }), res.end();
   }
 
-  // 3) 模拟登录（调试/演示用，支持 uid 切换账号）
+  // 3) 模拟登录（调试/演示用；不传 uid 时为每个浏览器会话生成独立 openid，保证不同用户数据隔离；传 uid 可模拟指定微信号）
   if (p === '/api/wechat/mock-login' && req.method === 'POST') {
     const body = await readBody(req);
     const uid = body && body.uid;
-    const openid = uid ? 'openid_' + shortId(String(uid)) : 'openid_demo';
+    const openid = uid ? 'openid_' + shortId(String(uid)) : 'openid_' + crypto.randomBytes(8).toString('hex');
     const token = makeToken(openid);
     if (!db.homework[openid]) db.homework[openid] = [];
-    if (!db.history[openid])
-      db.history[openid] =
-        openid === 'openid_demo' ? db.history['openid_demo'] || [] : [];
+    if (!db.history[openid]) db.history[openid] = [];
     if (!db.settings[openid]) db.settings[openid] = null;
     const cookie = `fx_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
     return sendJson(
