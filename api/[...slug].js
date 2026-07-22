@@ -10,9 +10,9 @@
  */
 const crypto = require('crypto');
 
-/* ============ 微信配置（占位，部署时替换） ============ */
+/* ============ 微信配置 ============ */
 const WECHAT = {
-  appId: process.env.WX_APPID || 'YOUR_APPID',
+  appId: process.env.WX_APPID || 'wxfe942bf48a8d712c',
   appSecret: process.env.WX_SECRET || 'YOUR_SECRET',
 };
 const USE_MOCK = WECHAT.appId === 'YOUR_APPID';
@@ -70,12 +70,14 @@ function openidFromReq(req) {
 // 由 code/uid 派生稳定的短 openid
 const shortId = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 12);
 
-function exchangeCode(code) {
-  if (!USE_MOCK) {
-    // 真实环境应请求微信接口：
-    // const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${WECHAT.appId}&secret=${WECHAT.appSecret}&code=${code}&grant_type=authorization_code`;
-    // ... fetch -> json -> return j.openid;
-  }
+async function exchangeCode(code) {
+  if (USE_MOCK) return 'openid_' + shortId(code);
+  try {
+    const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${WECHAT.appId}&secret=${WECHAT.appSecret}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+    const r = await fetch(url, { redirect: 'follow' });
+    const j = await r.json();
+    if (j && j.openid) return j.openid;
+  } catch (e) {}
   return 'openid_' + shortId(code);
 }
 
@@ -133,7 +135,7 @@ async function handle(req, res) {
   if (p === '/api/wechat/callback') {
     const code = url.searchParams.get('code');
     if (!code) return sendJson(res, 400, { error: 'missing code' });
-    const openid = exchangeCode(code);
+    const openid = await exchangeCode(code);
     const token = makeToken(openid);
     if (!db.homework[openid]) db.homework[openid] = [];
     if (!db.history[openid])
@@ -142,6 +144,12 @@ async function handle(req, res) {
     if (!db.settings[openid]) db.settings[openid] = null;
     const cookie = `fx_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
     return res.writeHead(302, { Location: '/', 'Set-Cookie': cookie }), res.end();
+  }
+
+  // 2.5) 登出：清除登录 cookie
+  if (p === '/api/wechat/logout') {
+    const cookie = `fx_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+    return res.writeHead(200, { 'Set-Cookie': cookie }), res.end();
   }
 
   // 3) 模拟登录（调试/演示用，支持 uid 切换账号）

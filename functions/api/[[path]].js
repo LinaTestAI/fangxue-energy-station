@@ -136,11 +136,26 @@ export async function onRequest(context) {
   const kv = env && env.FX_KV ? env.FX_KV : null;
 
   // 微信配置（不使用 Node.js 的 process）
+  // 正式公众号 AppId（如用环境变量覆盖，在 Cloudflare 后台配置 WX_APPID / WX_SECRET）
   const WECHAT = {
-    appId: (env && env.WX_APPID) || 'YOUR_APPID',
+    appId: (env && env.WX_APPID) || 'wxfe942bf48a8d712c',
     appSecret: (env && env.WX_SECRET) || 'YOUR_SECRET',
   };
   const USE_MOCK = WECHAT.appId === 'YOUR_APPID';
+
+  // code -> openid：真实环境请求微信接口换取；失败则回退（避免登录死循环）
+  async function exchangeCode(code) {
+    if (USE_MOCK) return 'openid_' + b64url(new TextEncoder().encode(code)).slice(0, 12);
+    try {
+      const u = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${
+        WECHAT.appId
+      }&secret=${WECHAT.appSecret}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+      const r = await fetch(u, { redirect: 'follow' });
+      const j = await r.json();
+      if (j && j.openid) return j.openid;
+    } catch (e) {}
+    return 'openid_' + b64url(new TextEncoder().encode(code)).slice(0, 12);
+  }
 
   const url = new URL(request.url);
   const p = url.pathname;
@@ -166,12 +181,22 @@ export async function onRequest(context) {
   if (p === '/api/wechat/callback') {
     const code = url.searchParams.get('code');
     if (!code) return jsonRes({ error: 'missing code' }, 400);
-    // 真实环境应请求微信换取 openid；此处用 code 派生稳定 openid
-    const oid = 'openid_' + b64url(new TextEncoder().encode(code)).slice(0, 12);
+    const oid = await exchangeCode(code); // 真实环境向微信换取 openid
     const t = await makeToken(oid);
     return new Response(null, {
       status: 302,
       headers: { Location: '/', 'Set-Cookie': cookieHeader(t) },
+    });
+  }
+
+  // ── 2.5 登出：清除登录 cookie ──
+  if (p === '/api/wechat/logout') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Set-Cookie':
+          'fx_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+      },
     });
   }
 

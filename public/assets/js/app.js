@@ -129,7 +129,12 @@ async function onLoggedIn(user) {
     const s = await apiGet('/api/settings');
     if (s && typeof s === 'object') {
       if (s.entertainMinutes > 0) entertainMinutes = s.entertainMinutes;
-      if (s.subjects && typeof s.subjects === 'object') subjectsState = s.subjects;
+      // 兼容旧版数组格式（["数学","语文"...]）与对象格式（{"数学":{cls,emoji}}）
+      if (Array.isArray(s.subjects)) {
+        subjectsState = Object.fromEntries(s.subjects.map(k => [k, { cls: '', emoji: '📄' }]));
+      } else if (s.subjects && typeof s.subjects === 'object') {
+        subjectsState = s.subjects;
+      }
     }
   } catch (e) {}
 
@@ -517,30 +522,6 @@ function delSubject(k) {
   if (Object.keys(subjectsState).length <= 1) { toast('至少保留一个学科'); return; }
   delete subjectsState[k];
   renderSubjManage(); saveSettings(); toast('已删除：' + k);
-}
-
-/* 切换演示账号：模拟不同微信号，数据/设置各自独立 */
-function openAccountModal() {
-  const grid = document.getElementById('accountOpts');
-  const accounts = [
-    { uid: '', label: '同学（默认）' },
-    { uid: 'student_a', label: '同学A' },
-    { uid: 'student_b', label: '同学B' },
-  ];
-  grid.innerHTML = accounts.map(a =>
-    `<button class="chip-opt" onclick="switchAccount('${a.uid}')">${a.label}</button>`
-  ).join('');
-  openSheet('accountSheet');
-}
-async function switchAccount(uid) {
-  closeSheet('accountSheet');
-  showLogin('切换账号中…', '正在加载该账号的数据');
-  try {
-    await apiPost('/api/wechat/mock-login', { uid });
-    const u = await apiGet('/api/user');
-    if (u) onLoggedIn(u);
-    else loginError('无法获取用户信息');
-  } catch (e) { loginError('切换失败，请重试'); }
 }
 
 /* ====================================================================

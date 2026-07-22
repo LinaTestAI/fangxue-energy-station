@@ -129,7 +129,6 @@
       </div>
     </div>
     <div class="card">
-      <div class="set-row" onclick="openAccountModal()">切换微信账号（演示） <span class="arrow">⟲</span></div>
       <div class="set-row" onclick="clearData()">重置当前账号缓存 <span class="arrow">⟲</span></div>
       <div class="set-row">关于放学能量站 <span class="arrow">›</span></div>
     </div>
@@ -167,16 +166,6 @@
         <button class="btn primary" style="width:auto;padding:11px 18px;" onclick="addSubject()">添加</button>
       </div>
       <button class="btn ghost" style="margin-top:12px;" onclick="closeSheet('subjectSheet')">完成</button>
-    </div>
-  </div>
-
-  <!-- 切换账号 弹层 -->
-  <div class="sheet-mask" id="accountSheet" onclick="if(event.target===this)closeSheet('accountSheet')">
-    <div class="sheet">
-      <h3>切换微信账号（演示）</h3>
-      <p class="sheet-sub">模拟不同微信号登录，作业与设置各自独立</p>
-      <div class="opt-grid" id="accountOpts"></div>
-      <button class="btn ghost" style="margin-top:12px;" onclick="closeSheet('accountSheet')">取消</button>
     </div>
   </div>
 
