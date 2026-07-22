@@ -36,7 +36,9 @@ async function saveSettings() {
 /* ---------- 业务状态 ---------- */
 let hw = [];          // 今日作业 [{id,subj,title,min,done}]
 let history = [];     // 历史记录 [{id,subj,title,min}]
-let cooldown = false; // 完成一项后 1 分钟冷却，防止跳做
+let hwFocusId = null; // 正在进行倒计时的作业 id（一次仅一项）
+let hwFocusRemain = 0; // 该项剩余秒数
+let hwTimer = null;    // 作业倒计时计时器
 let loggedIn = false;
 
 /* ====================================================================
@@ -118,10 +120,9 @@ async function onLoggedIn(user) {
   loggedIn = true;
   // 切换账号时清理上一账号的运行态，避免交叉
   clearInterval(focusTimer); focusTimer = null;
-  clearInterval(ecTimer); ecTimer = null; entertainRunning = false; cooldown = false;
+  clearInterval(ecTimer); ecTimer = null; entertainRunning = false;
+  clearInterval(hwTimer); hwTimer = null; hwFocusId = null; hwFocusRemain = 0;
 
-  document.getElementById('userId').textContent =
-    (user.openid || '').slice(0, 12) + (user.nickname ? '（' + user.nickname + '）' : '');
   hideLogin();
 
   // 1) 设置（娱乐时长 + 学科），按账号隔离
@@ -193,21 +194,28 @@ function renderHW() {
   }
   hw.forEach((h, idx) => {
     const s = getSubjects()[h.subj] || { cls: '', emoji: '📄' };
+    const focusing = hwFocusId === h.id;
+    const locked = !h.done && hwFocusId !== null && !focusing; // 有别的作业在专注中 → 本项锁定
     const div = document.createElement('div');
-    div.className = 'hw' + (h.done ? ' done' : '');
+    div.className = 'hw' + (h.done ? ' done' : '') + (focusing ? ' focusing' : '') + (locked ? ' locked' : '');
+    let right;
+    if (h.done) right = '✓';
+    else if (focusing) right = `<span class="cd" id="hwCD-${h.id}">${mmss(hwFocusRemain)}</span>`;
+    else if (locked) right = '🔒';
+    else right = `${h.min}′ ▶`;
     div.innerHTML = `
       <div class="check">${h.done ? '✓' : ''}</div>
       <div class="info">
         <span class="subj ${s.cls}">${h.subj}</span>
         <div class="title">${h.title}</div>
-        <div class="meta">${h.done ? '已完成 ✓' : '待完成'}</div>
+        <div class="meta">${h.done ? '已完成 ✓' : (focusing ? '专注中…' : (locked ? '待解锁' : '点击开始'))}</div>
       </div>
-      <div class="time">${h.min}′</div>
+      <div class="time">${right}</div>
       <div class="reorder">
         <button class="mv ${idx === 0 ? 'dis' : ''}" ${idx === 0 ? 'disabled' : ''} onclick="event.stopPropagation();moveHW(${idx},-1)">▲</button>
         <button class="mv ${idx === hw.length - 1 ? 'dis' : ''}" ${idx === hw.length - 1 ? 'disabled' : ''} onclick="event.stopPropagation();moveHW(${idx},1)">▼</button>
       </div>`;
-    if (!h.done && !cooldown) div.onclick = () => toggleHW(h.id);
+    if (!h.done && !focusing && !locked) div.onclick = () => startFocusTask(h.id);
     list.appendChild(div);
   });
   updateUnlock();
@@ -221,15 +229,42 @@ function moveHW(idx, dir) {
   persistHW();
   toast('已调整完成顺序');
 }
-function toggleHW(id) {
+/* 秒 → mm:ss */
+function mmss(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return m + ':' + s;
+}
+/* 开始某项作业的专注倒计时（时长 = 该项预计完成分钟数） */
+function startFocusTask(id) {
   const h = hw.find(x => x.id === id);
-  if (!h || h.done) return;
+  if (!h || h.done || hwFocusId) return; // 一次只专注一项
+  hwFocusId = id;
+  hwFocusRemain = h.min * 60;
+  renderHW();
+  clearInterval(hwTimer);
+  hwTimer = setInterval(() => {
+    hwFocusRemain--;
+    const el = document.getElementById('hwCD-' + id);
+    if (el) el.textContent = mmss(hwFocusRemain);
+    if (hwFocusRemain <= 0) {
+      clearInterval(hwTimer);
+      completeTask(id);
+    }
+  }, 1000);
+  toast('开始专注：' + h.subj + ' ' + h.min + ' 分钟');
+}
+/* 倒计时结束 → 标记完成并持久化，解锁下一项 */
+function completeTask(id) {
+  const h = hw.find(x => x.id === id);
+  if (!h) return;
   h.done = true;
-  cooldown = true;
+  hwFocusId = null; hwFocusRemain = 0;
+  clearInterval(hwTimer);
   renderHW();
   persistHW();
-  toast('完成！1 分钟内其他作业暂不可点');
-  setTimeout(() => { cooldown = false; renderHW(); }, 60000);
+  updateUnlock();
+  toast('完成！下一项已解锁 🔓');
 }
 function updateUnlock() {
   const all = hw.length > 0 && hw.every(h => h.done);

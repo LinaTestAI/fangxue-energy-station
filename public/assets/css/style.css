@@ -61,6 +61,9 @@ body{
 /* 作业项 */
 .hw{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:#FBFCFE;border:1px solid var(--line);margin-bottom:10px;transition:.2s;}
 .hw.done{background:var(--green-soft);border-color:transparent;}
+.hw.focusing{border-color:var(--green);box-shadow:0 0 0 2px rgba(30,158,74,.15);}
+.hw.locked{opacity:.45;}
+.hw .cd{font-variant-numeric:tabular-nums;font-weight:700;color:var(--green);}
 .hw .check{width:26px;height:26px;border-radius:50%;border:2px solid #D4DAE3;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;}
 .hw.done .check{background:var(--green);border-color:var(--green);}
 .hw .info{flex:1;min-width:0;}
